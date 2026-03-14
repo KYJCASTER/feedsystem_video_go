@@ -36,7 +36,7 @@ func NewTimelineMQ(base *RabbitMQ) (*TimelineMQ, error) {
 
 func (t *TimelineMQ) PublishVideo(ctx context.Context, videoID uint, createTime time.Time) error {
 	if t == nil || t.RabbitMQ == nil {
-		return errors.New("like mq is not initialized")
+		return errors.New("timelike mq is not initialized")
 	}
 	if videoID == 0 {
 		return errors.New("videoID are required")

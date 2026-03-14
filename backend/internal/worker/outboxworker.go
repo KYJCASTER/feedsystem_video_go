@@ -52,6 +52,7 @@ func StartConsumer(tmq *rabbitmq.TimelineMQ, queueName string, redisClient *redi
 
 	if err != nil {
 		log.Printf("注册消费失败")
+		return
 	}
 
 	go func() {
@@ -69,7 +70,7 @@ func StartConsumer(tmq *rabbitmq.TimelineMQ, queueName string, redisClient *redi
 			timelineKey := "feed:global_timeline"
 			err = redisClient.ZAdd(ctx, timelineKey, oredis.Z{
 				Score:  float64(event.CreateTime),
-				Member: fmt.Sprintf("%d", event.ViedoID),
+				Member: fmt.Sprintf("%d", event.VideoID),
 			})
 
 			if err != nil {

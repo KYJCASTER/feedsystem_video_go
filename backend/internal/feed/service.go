@@ -26,7 +26,7 @@ type FeedService struct {
 }
 
 type CachedFeedData struct {
-	PublicVideos []video.Video `json:"pubilc_videos"`
+	PublicVideos []video.Video `json:"public_videos"`
 }
 
 func NewFeedService(repo *FeedRepository, likeRepo *video.LikeRepository, rediscache *rediscache.Client) *FeedService {
@@ -70,7 +70,7 @@ func (f *FeedService) GetVideoByIDs(ctx context.Context, videoIDs []uint) ([]*vi
 		}
 
 		cacheCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
-		results, err := f.rediscache.MGet(cacheCtx, cacheKeys...).Result()
+		results, err := f.rediscache.MGet(cacheCtx, cacheKeys...)
 		cancel()
 
 		if err == nil {
@@ -105,7 +105,7 @@ func (f *FeedService) GetVideoByIDs(ctx context.Context, videoIDs []uint) ([]*vi
 	//L3:MySQL
 	var wg sync.WaitGroup
 	var mu sync.Mutex
-	for _, id := range videoIDs {
+	for _, id := range missedL2 {
 		wg.Add(1)
 		go func(videoID uint) {
 			defer wg.Done()
@@ -114,7 +114,7 @@ func (f *FeedService) GetVideoByIDs(ctx context.Context, videoIDs []uint) ([]*vi
 			v, err, _ := f.requestGroup.Do(sfKey, func() (interface{}, error) {
 				videoList, err := f.repo.GetByIDs(ctx, []uint{videoID})
 
-				if err != nil {
+				if err != nil || len(videoList) == 0 {
 					return nil, err
 				}
 
@@ -147,9 +147,13 @@ func (f *FeedService) GetVideoByIDs(ctx context.Context, videoIDs []uint) ([]*vi
 
 // 查询最新视频 (冷热分离 + 游标分页)
 func (f *FeedService) ListLatest(ctx context.Context, limit int, latestBefore time.Time, viewerAccountID uint) (ListLatestResponse, error) {
-
 	// 获取 ZSET 中最老的一条数据
 	zsetTail, err := f.rediscache.ZRangeWithScores(ctx, "feed:global_timeline", 0, 0)
+
+	if err != nil {
+		return ListLatestResponse{}, err
+	}
+
 	isZsetEmpty := len(zsetTail) == 0
 
 	if isZsetEmpty {
@@ -269,11 +273,7 @@ func (f *FeedService) ListLatest(ctx context.Context, limit int, latestBefore ti
 	}
 	var hasMore bool
 
-	if reqTime <= watermark {
-		hasMore = len(baseVideos) == limit
-	} else {
-		hasMore = true
-	}
+	hasMore = len(baseVideos) == limit
 
 	feedVideos, err := f.buildFeedVideos(ctx, baseVideos, viewerAccountID)
 	if err != nil {
@@ -537,9 +537,11 @@ func (f *FeedService) buildFeedVideos(ctx context.Context, videos []*video.Video
 }
 
 func buildOrderedResult(orderedIDs []uint, dataMap map[uint]*video.Video) []*video.Video {
-	var res []*video.Video
+	res := make([]*video.Video, 0, len(orderedIDs))
 	for _, id := range orderedIDs {
-		res = append(res, dataMap[id])
+		if v, exit := dataMap[id]; exit && v != nil {
+			res = append(res, v)
+		}
 	}
 	return res
 }

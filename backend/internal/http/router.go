@@ -130,6 +130,10 @@ func SetRouter(db *gorm.DB, cache *rediscache.Client, rmq *rabbitmq.RabbitMQ) *g
 	}
 	//worker
 	timelineMQ, err := rabbitmq.NewTimelineMQ(rmq)
+	if err != nil {
+		log.Printf("timelineMQ init failed (mq disabled): %v", err)
+		socialMQ = nil
+	}
 	worker.StartOutboxPoller(db, timelineMQ)
 	worker.StartConsumer(timelineMQ, "video.timeline.update.queue", cache)
 	return r
