@@ -32,3 +32,9 @@ go.work.sum
 .idea/
 .vscode/
 
+
+# Claude Code local state
+.claude/
+
+# Claude Code local state
+.claude/
